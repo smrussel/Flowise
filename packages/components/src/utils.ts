@@ -628,9 +628,16 @@ export const decryptCredentialData = async (encryptedData: string): Promise<ICom
         }
     } else {
         // Fallback to existing code
-        const encryptKey = await getEncryptionKey()
-        const decryptedData = AES.decrypt(encryptedData, encryptKey)
-        decryptedDataStr = decryptedData.toString(enc.Utf8)
+        try {
+            const encryptKey = await getEncryptionKey()
+            const decryptedData = AES.decrypt(encryptedData, encryptKey)
+            decryptedDataStr = decryptedData.toString(enc.Utf8)
+        } catch (error) {
+            console.error('Failed to decrypt credential data:', error)
+            throw new Error(
+                'Failed to decrypt credentials. The encryption key does not match the database. Please re-enter your credential in Flowise or set FLOWISE_SECRETKEY_OVERWRITE.'
+            )
+        }
     }
 
     if (!decryptedDataStr) return {}
