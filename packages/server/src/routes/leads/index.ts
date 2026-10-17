@@ -4,6 +4,7 @@ const router = express.Router()
 
 // CREATE
 router.post('/', leadsController.createLeadInChatflow)
+router.post('/test-mailchimp', leadsController.testMailchimp)
 
 // READ
 router.get(['/', '/:id'], leadsController.getAllLeadsForChatflow)

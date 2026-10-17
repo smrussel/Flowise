@@ -583,6 +583,9 @@ const getSinglePublicChatbotConfig = async (chatflowId: string): Promise<any> =>
                 }
                 delete parsedConfig.allowedOrigins
                 delete parsedConfig.allowedOriginsError
+                if (parsedConfig.leads?.mailchimp) {
+                    delete parsedConfig.leads.mailchimp
+                }
                 return {
                     ...parsedConfig,
                     uploads: uploadsConfig,

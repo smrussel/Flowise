@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 
 // material-ui
-import { Button, Box, OutlinedInput, Typography } from '@mui/material'
+import { Button, Box, OutlinedInput, Typography, Divider } from '@mui/material'
 import { IconX } from '@tabler/icons-react'
 
 // Project import
@@ -16,6 +16,7 @@ import useNotifier from '@/utils/useNotifier'
 
 // API
 import chatflowsApi from '@/api/chatflows'
+import leadsApi from '@/api/lead'
 
 const formTitle = `Hey 👋 thanks for your interest!
 Let us know where we can reach you`
@@ -33,12 +34,57 @@ const Leads = ({ dialogProps }) => {
 
     const [leadsConfig, setLeadsConfig] = useState({})
     const [chatbotConfig, setChatbotConfig] = useState({})
+    const [isTesting, setIsTesting] = useState(false)
+    const [testResult, setTestResult] = useState(null)
 
     const handleChange = (key, value) => {
         setLeadsConfig({
             ...leadsConfig,
             [key]: value
         })
+    }
+
+    const handleMailchimpChange = (field, value) => {
+        setLeadsConfig({
+            ...leadsConfig,
+            mailchimp: {
+                ...(leadsConfig.mailchimp || {}),
+                [field]: value
+            }
+        })
+        setTestResult(null)
+    }
+
+    const handleTestMailchimp = async () => {
+        const mc = leadsConfig?.mailchimp
+        if (!mc?.apiKey || !mc?.audienceId) return
+        try {
+            setIsTesting(true)
+            setTestResult(null)
+            const resp = await leadsApi.testMailchimp({
+                apiKey: mc.apiKey,
+                audienceId: mc.audienceId,
+                serverPrefix: mc.serverPrefix
+            })
+            if (resp.data?.success) {
+                setTestResult({
+                    success: true,
+                    message: `Connected successfully to audience "${resp.data.name}" (${resp.data.totalSubscribers} members). Data center: ${resp.data.serverPrefix}`
+                })
+            } else {
+                setTestResult({
+                    success: false,
+                    message: resp.data?.message || 'Failed to connect to Mailchimp'
+                })
+            }
+        } catch (error) {
+            setTestResult({
+                success: false,
+                message: error.response?.data?.message || error.message || 'Connection test failed'
+            })
+        } finally {
+            setIsTesting(false)
+        }
     }
 
     const onSave = async () => {
@@ -94,6 +140,8 @@ const Leads = ({ dialogProps }) => {
 
         return () => {}
     }, [dialogProps])
+
+    const isMailchimpIncomplete = leadsConfig?.mailchimp?.status && (!leadsConfig?.mailchimp?.apiKey || !leadsConfig?.mailchimp?.audienceId)
 
     return (
         <>
@@ -157,12 +205,105 @@ const Leads = ({ dialogProps }) => {
                                 <SwitchInput label='Phone' onChange={(value) => handleChange('phone', value)} value={leadsConfig.phone} />
                             </Box>
                         </Box>
+
+                        <Divider sx={{ width: '100%', my: 1 }} />
+                        <Typography variant='h4'>Email Campaigns (Mailchimp)</Typography>
+                        <SwitchInput
+                            label='Sync Leads to Mailchimp'
+                            onChange={(value) => handleMailchimpChange('status', value)}
+                            value={leadsConfig?.mailchimp?.status}
+                        />
+                        {leadsConfig?.mailchimp?.status && (
+                            <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2, pl: 1 }}>
+                                <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
+                                        Mailchimp API Key *
+                                    </Typography>
+                                    <OutlinedInput
+                                        id='mailchimp-api-key'
+                                        type='password'
+                                        fullWidth
+                                        size='small'
+                                        value={leadsConfig?.mailchimp?.apiKey || ''}
+                                        placeholder='e.g. md5hash-us20'
+                                        onChange={(e) => handleMailchimpChange('apiKey', e.target.value)}
+                                    />
+                                </Box>
+                                <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
+                                        Audience / List ID *
+                                    </Typography>
+                                    <OutlinedInput
+                                        id='mailchimp-audience-id'
+                                        type='text'
+                                        fullWidth
+                                        size='small'
+                                        value={leadsConfig?.mailchimp?.audienceId || ''}
+                                        placeholder='e.g. 205d96e6b4'
+                                        onChange={(e) => handleMailchimpChange('audienceId', e.target.value)}
+                                    />
+                                </Box>
+                                <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
+                                        Server Prefix (Optional)
+                                    </Typography>
+                                    <OutlinedInput
+                                        id='mailchimp-server-prefix'
+                                        type='text'
+                                        fullWidth
+                                        size='small'
+                                        value={leadsConfig?.mailchimp?.serverPrefix || ''}
+                                        placeholder='e.g. us20 (auto-extracted from API key if left blank)'
+                                        onChange={(e) => handleMailchimpChange('serverPrefix', e.target.value)}
+                                    />
+                                </Box>
+                                <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
+                                        Tags (Optional)
+                                    </Typography>
+                                    <OutlinedInput
+                                        id='mailchimp-tags'
+                                        type='text'
+                                        fullWidth
+                                        size='small'
+                                        value={leadsConfig?.mailchimp?.tags || ''}
+                                        placeholder='e.g. flowise, chatbot-lead (comma separated)'
+                                        onChange={(e) => handleMailchimpChange('tags', e.target.value)}
+                                    />
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                                    <Button
+                                        variant='outlined'
+                                        size='small'
+                                        onClick={handleTestMailchimp}
+                                        disabled={!leadsConfig?.mailchimp?.apiKey || !leadsConfig?.mailchimp?.audienceId || isTesting}
+                                        sx={{ borderRadius: '8px' }}
+                                    >
+                                        {isTesting ? 'Testing...' : 'Test Connection'}
+                                    </Button>
+                                    {testResult && (
+                                        <Typography
+                                            variant='body2'
+                                            sx={{
+                                                color: testResult.success ? 'success.main' : 'error.main',
+                                                fontWeight: 500
+                                            }}
+                                        >
+                                            {testResult.message}
+                                        </Typography>
+                                    )}
+                                </Box>
+                            </Box>
+                        )}
                     </>
                 )}
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', width: '100%', mt: 2 }}>
                 <StyledButton
-                    disabled={!leadsConfig['name'] && !leadsConfig['phone'] && !leadsConfig['email'] && leadsConfig['status']}
+                    disabled={
+                        (!leadsConfig['name'] && !leadsConfig['phone'] && !leadsConfig['email'] && leadsConfig['status']) ||
+                        isMailchimpIncomplete
+                    }
                     variant='contained'
                     onClick={onSave}
                     sx={{ minWidth: 100 }}
