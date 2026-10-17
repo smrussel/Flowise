@@ -6,6 +6,9 @@ import { ChatOpenAI } from './FlowiseChatOpenAI'
 import { getModels, MODEL_TYPE } from '../../../src/modelLoader'
 import { OpenAI as OpenAIClient } from 'openai'
 
+const openAIModelsCache = new Map<string, { timestamp: number; data: INodeOptionsValue[] }>()
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
 class ChatOpenAI_ChatModels implements INode {
     label: string
     name: string
@@ -239,7 +242,13 @@ class ChatOpenAI_ChatModels implements INode {
                         const credentialData = await getCredentialData(credId, options)
                         const openAIApiKey = credentialData?.openAIApiKey || (nodeData?.inputs as any)?.openAIApiKey
                         if (openAIApiKey) {
-                            const basePath = nodeData.inputs?.basepath as string
+                            const basePath = (nodeData.inputs?.basepath as string) || ''
+                            const cacheKey = `${openAIApiKey}_${basePath}`
+                            const cached = openAIModelsCache.get(cacheKey)
+                            if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+                                return cached.data
+                            }
+
                             const clientOptions: any = { apiKey: openAIApiKey }
                             if (basePath) clientOptions.baseURL = basePath
                             const openai = new OpenAIClient(clientOptions)
@@ -255,7 +264,9 @@ class ChatOpenAI_ChatModels implements INode {
                                 }
                             }
                             apiModels.sort((a, b) => a.name.localeCompare(b.name))
-                            return [...staticModels, ...apiModels]
+                            const result = [...staticModels, ...apiModels]
+                            openAIModelsCache.set(cacheKey, { timestamp: Date.now(), data: result })
+                            return result
                         }
                     }
                 }

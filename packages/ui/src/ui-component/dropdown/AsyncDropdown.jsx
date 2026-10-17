@@ -45,19 +45,17 @@ const fetchList = async ({ name, nodeData, previousNodes, currentNode }) => {
         withCredentials: true
     }
 
-    let lists = await axios
-        .post(
+    try {
+        let response = await axios.post(
             `${baseURL}/api/v1/node-load-method/${nodeData.name}`,
             { ...nodeData, loadMethod, previousNodes, currentNode, credential: credentialId },
             config
         )
-        .then(async function (response) {
-            return response.data
-        })
-        .catch(function (error) {
-            console.error(error)
-        })
-    return lists
+        return Array.isArray(response.data) ? response.data : []
+    } catch (error) {
+        console.error(error)
+        return []
+    }
 }
 
 export const AsyncDropdown = ({
@@ -80,22 +78,37 @@ export const AsyncDropdown = ({
     const [open, setOpen] = useState(false)
     const [options, setOptions] = useState([])
     const [loading, setLoading] = useState(false)
-    const findMatchingOptions = (options = [], value) => {
+    let [internalValue, setInternalValue] = useState(value ?? 'choose an option')
+    const { reactFlowInstance } = useContext(flowContext)
+
+    useEffect(() => {
+        setInternalValue(value ?? 'choose an option')
+    }, [value])
+
+    const findMatchingOptions = (options = [], val) => {
+        if (!val || val === 'choose an option') return multiple ? [] : null
         if (multiple) {
             let values = []
-            if ('choose an option' !== value && value && typeof value === 'string') {
-                values = JSON.parse(value)
-            } else {
-                values = value
+            if (val && typeof val === 'string') {
+                try {
+                    values = JSON.parse(val)
+                } catch {
+                    values = [val]
+                }
+            } else if (Array.isArray(val)) {
+                values = val
             }
             return options.filter((option) => values.includes(option.name))
         }
-        return options.find((option) => option.name === value)
+        const found = options.find((option) => option.name === val || option.label === val)
+        if (found) return found
+        if (freeSolo && val) {
+            return { label: val, name: val }
+        }
+        return null
     }
-    const getDefaultOptionValue = () => (multiple ? [] : '')
+    const getDefaultOptionValue = () => (multiple ? [] : null)
     const addNewOption = [{ label: '- Create New -', name: '-create-' }]
-    let [internalValue, setInternalValue] = useState(value ?? 'choose an option')
-    const { reactFlowInstance } = useContext(flowContext)
 
     const fetchCredentialList = async () => {
         try {
@@ -161,14 +174,16 @@ export const AsyncDropdown = ({
 
                     response = await fetchList(body)
                 }
-                for (let j = 0; j < response.length; j += 1) {
-                    if (response[j].imageSrc) {
-                        const imageSrc = `${baseURL}/api/v1/node-icon/${response[j].name}`
-                        response[j].imageSrc = imageSrc
+                if (Array.isArray(response)) {
+                    for (let j = 0; j < response.length; j += 1) {
+                        if (response[j].imageSrc) {
+                            const imageSrc = `${baseURL}/api/v1/node-icon/${response[j].name}`
+                            response[j].imageSrc = imageSrc
+                        }
                     }
+                    if (isCreateNewOption) setOptions([...response, ...addNewOption])
+                    else setOptions([...response])
                 }
-                if (isCreateNewOption) setOptions([...response, ...addNewOption])
-                else setOptions([...response])
                 setLoading(false)
             }
             fetchData()
@@ -195,24 +210,56 @@ export const AsyncDropdown = ({
                 onClose={() => {
                     setOpen(false)
                 }}
+                openOnFocus
+                selectOnFocus
+                clearOnBlur={false}
                 options={options}
                 value={findMatchingOptions(options, internalValue) || getDefaultOptionValue()}
+                getOptionLabel={(option) => {
+                    if (typeof option === 'string') return option
+                    return option?.label || option?.name || ''
+                }}
+                isOptionEqualToValue={(option, val) => {
+                    if (!val) return false
+                    const valName = typeof val === 'string' ? val : val.name
+                    return option.name === valName || option.label === valName
+                }}
+                filterOptions={(optionsList, state) => {
+                    const input = (state.inputValue || '').trim().toLowerCase()
+                    if (!input || input === 'choose an option') {
+                        return optionsList
+                    }
+                    const selected = findMatchingOptions(optionsList, internalValue)
+                    if (selected && !multiple) {
+                        const selLabel = (selected.label || '').toLowerCase()
+                        const selName = (selected.name || '').toLowerCase()
+                        if (input === selLabel || input === selName) {
+                            return optionsList
+                        }
+                    }
+                    return optionsList.filter((option) => {
+                        const label = (option.label || '').toLowerCase()
+                        const optName = (option.name || '').toLowerCase()
+                        const desc = (option.description || '').toLowerCase()
+                        return label.includes(input) || optName.includes(input) || desc.includes(input)
+                    })
+                }}
                 onChange={(e, selection) => {
                     if (multiple) {
-                        let value = ''
-                        if (selection.length) {
-                            const selectionNames = selection.map((item) => item.name)
-                            value = JSON.stringify(selectionNames)
+                        let val = ''
+                        if (selection && selection.length) {
+                            const selectionNames = selection.map((item) => (typeof item === 'string' ? item : item.name))
+                            val = JSON.stringify(selectionNames)
                         }
-                        setInternalValue(value)
-                        onSelect(value)
+                        setInternalValue(val)
+                        onSelect(val)
                     } else {
-                        const value = selection ? selection.name : ''
-                        if (isCreateNewOption && value === '-create-') {
+                        const val = selection ? (typeof selection === 'string' ? selection : selection.name) : ''
+                        if (isCreateNewOption && val === '-create-') {
                             onCreateNew()
                         } else {
-                            setInternalValue(value)
-                            onSelect(value)
+                            setInternalValue(val)
+                            onSelect(val)
                         }
                     }
                 }}
@@ -220,13 +267,18 @@ export const AsyncDropdown = ({
                 loading={loading}
                 renderInput={(params) => {
                     const matchingOptions = multiple
-                        ? findMatchingOptions(options, internalValue)
+                        ? findMatchingOptions(options, internalValue) || []
                         : [findMatchingOptions(options, internalValue)].filter(Boolean)
+
+                    const isPlaceholder = !internalValue || internalValue === 'choose an option'
 
                     const textField = (
                         <TextField
                             {...params}
-                            value={internalValue}
+                            placeholder={isPlaceholder ? 'Choose an option' : ''}
+                            onClick={() => {
+                                if (!open) setOpen(true)
+                            }}
                             sx={{
                                 height: '100%',
                                 '& .MuiInputBase-root': {

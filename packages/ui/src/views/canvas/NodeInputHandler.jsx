@@ -1378,7 +1378,7 @@ const NodeInputHandler = ({
                                 <div
                                     key={`${reloadTimestamp}_${data.id}_${
                                         data.credential || (data.inputs && data.inputs[FLOWISE_CREDENTIAL_ID]) || ''
-                                    }_${JSON.stringify(data.inputs[inputParam.name])}`}
+                                    }`}
                                     style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1 }}
                                 >
                                     <AsyncDropdown
