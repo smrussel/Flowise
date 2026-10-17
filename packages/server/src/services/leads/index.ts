@@ -5,6 +5,8 @@ import crypto from 'crypto'
 import { getRunningExpressApp } from '../../utils/getRunningExpressApp'
 import { Lead } from '../../database/entities/Lead'
 import { ChatFlow } from '../../database/entities/ChatFlow'
+import { Credential } from '../../database/entities/Credential'
+import { decryptCredentialData } from '../../utils'
 import { ILead } from '../../Interface'
 import { InternalFlowiseError } from '../../errors/internalFlowiseError'
 import { getErrorMessage } from '../../errors/utils'
@@ -14,6 +16,28 @@ interface IMailchimpLeadPayload {
     email: string
     name?: string
     phone?: string
+}
+
+export const resolveMailchimpApiKey = async (mailchimp: { apiKey?: string; credentialId?: string }): Promise<string | undefined> => {
+    if (mailchimp.credentialId && mailchimp.credentialId.trim()) {
+        try {
+            const appServer = getRunningExpressApp()
+            const credential = await appServer.AppDataSource.getRepository(Credential).findOneBy({
+                id: mailchimp.credentialId.trim()
+            })
+            if (credential) {
+                const decryptedData = await decryptCredentialData(credential.encryptedData)
+                const key = decryptedData['mailchimpApiKey'] || decryptedData['apiKey']
+                if (key) return key.trim()
+            }
+        } catch (error) {
+            logger.error(`[Mailchimp]: Failed to decrypt credential ${mailchimp.credentialId}: ${getErrorMessage(error)}`)
+        }
+    }
+    if (mailchimp.apiKey && mailchimp.apiKey.trim()) {
+        return mailchimp.apiKey.trim()
+    }
+    return undefined
 }
 
 export const syncLeadToMailchimp = async (chatflowid: string, lead: IMailchimpLeadPayload) => {
@@ -32,11 +56,16 @@ export const syncLeadToMailchimp = async (chatflowid: string, lead: IMailchimpLe
         }
 
         const mailchimp = chatbotConfig?.leads?.mailchimp
-        if (!mailchimp?.status || !mailchimp?.apiKey || !mailchimp?.audienceId) {
+        if (!mailchimp?.status || !mailchimp?.audienceId) {
             return
         }
 
-        const apiKey = mailchimp.apiKey.trim()
+        const apiKey = await resolveMailchimpApiKey(mailchimp)
+        if (!apiKey) {
+            logger.warn(`[Mailchimp]: No valid API key or credential found for chatflow ${chatflowid}`)
+            return
+        }
+
         const audienceId = mailchimp.audienceId.trim()
 
         let serverPrefix = mailchimp.serverPrefix?.trim()
@@ -119,22 +148,24 @@ export const syncLeadToMailchimp = async (chatflowid: string, lead: IMailchimpLe
 
 export const testMailchimpConnection = async ({
     apiKey,
+    credentialId,
     audienceId,
     serverPrefix
 }: {
-    apiKey: string
+    apiKey?: string
+    credentialId?: string
     audienceId: string
     serverPrefix?: string
 }) => {
     try {
-        if (!apiKey || !apiKey.trim()) {
-            throw new Error('Mailchimp API key is required')
+        const cleanKey = await resolveMailchimpApiKey({ apiKey, credentialId })
+        if (!cleanKey) {
+            throw new Error('Mailchimp API key or Credential is required')
         }
         if (!audienceId || !audienceId.trim()) {
             throw new Error('Audience / List ID is required')
         }
 
-        const cleanKey = apiKey.trim()
         const cleanAudienceId = audienceId.trim()
 
         let dc = serverPrefix?.trim()

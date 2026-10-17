@@ -8,6 +8,7 @@ import { Button, Box, OutlinedInput, Typography, Divider, Alert } from '@mui/mat
 import { IconX } from '@tabler/icons-react'
 
 // Project import
+import CredentialInputHandler from '@/views/canvas/CredentialInputHandler'
 import { StyledButton } from '@/ui-component/button/StyledButton'
 import { SwitchInput } from '@/ui-component/switch/Switch'
 
@@ -65,12 +66,13 @@ const Leads = ({ dialogProps }) => {
 
     const handleTestMailchimp = async () => {
         const mc = leadsConfig?.mailchimp
-        if (!mc?.apiKey || !mc?.audienceId) return
+        if ((!mc?.apiKey && !mc?.credentialId) || !mc?.audienceId) return
         try {
             setIsTesting(true)
             setTestResult(null)
             const resp = await leadsApi.testMailchimp({
                 apiKey: mc.apiKey,
+                credentialId: mc.credentialId,
                 audienceId: mc.audienceId,
                 serverPrefix: mc.serverPrefix
             })
@@ -149,8 +151,9 @@ const Leads = ({ dialogProps }) => {
         return () => {}
     }, [dialogProps])
 
+    const hasMailchimpAuth = leadsConfig?.mailchimp?.credentialId || leadsConfig?.mailchimp?.apiKey
     const isMailchimpIncomplete =
-        leadsConfig?.mailchimp?.status && (!leadsConfig?.mailchimp?.apiKey || !leadsConfig?.mailchimp?.audienceId || !leadsConfig?.email)
+        leadsConfig?.mailchimp?.status && (!hasMailchimpAuth || !leadsConfig?.mailchimp?.audienceId || !leadsConfig?.email)
 
     return (
         <>
@@ -233,7 +236,25 @@ const Leads = ({ dialogProps }) => {
                                 )}
                                 <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                     <Typography variant='body2' sx={{ fontWeight: 500, color: isDark ? 'text.secondary' : 'inherit' }}>
-                                        Mailchimp API Key *
+                                        Connect Credential
+                                    </Typography>
+                                    <CredentialInputHandler
+                                        key={leadsConfig?.mailchimp?.credentialId}
+                                        data={
+                                            leadsConfig?.mailchimp?.credentialId ? { credential: leadsConfig.mailchimp.credentialId } : {}
+                                        }
+                                        inputParam={{
+                                            label: 'Mailchimp Credential',
+                                            name: 'credential',
+                                            type: 'credential',
+                                            credentialNames: ['mailchimpApi']
+                                        }}
+                                        onSelect={(newValue) => handleMailchimpChange('credentialId', newValue)}
+                                    />
+                                </Box>
+                                <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                    <Typography variant='body2' sx={{ fontWeight: 500, color: isDark ? 'text.secondary' : 'inherit' }}>
+                                        Or Enter API Key Directly
                                     </Typography>
                                     <OutlinedInput
                                         id='mailchimp-api-key'
@@ -292,7 +313,11 @@ const Leads = ({ dialogProps }) => {
                                         variant='outlined'
                                         size='small'
                                         onClick={handleTestMailchimp}
-                                        disabled={!leadsConfig?.mailchimp?.apiKey || !leadsConfig?.mailchimp?.audienceId || isTesting}
+                                        disabled={
+                                            (!leadsConfig?.mailchimp?.apiKey && !leadsConfig?.mailchimp?.credentialId) ||
+                                            !leadsConfig?.mailchimp?.audienceId ||
+                                            isTesting
+                                        }
                                         sx={{
                                             borderRadius: '8px',
                                             px: 2,

@@ -51,10 +51,10 @@ const createLeadInChatflow = async (req: Request, res: Response, next: NextFunct
 
 const testMailchimp = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        if (!req.body || !req.body.apiKey || !req.body.audienceId) {
+        if (!req.body || (!req.body.apiKey && !req.body.credentialId) || !req.body.audienceId) {
             throw new InternalFlowiseError(
                 StatusCodes.BAD_REQUEST,
-                'Error: leadsController.testMailchimp - apiKey and audienceId are required!'
+                'Error: leadsController.testMailchimp - apiKey or credentialId and audienceId are required!'
             )
         }
         const apiResponse = await leadsService.testMailchimpConnection(req.body)
