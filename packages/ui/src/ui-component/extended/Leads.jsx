@@ -1,8 +1,9 @@
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 
 // material-ui
+import { useTheme } from '@mui/material/styles'
 import { Button, Box, OutlinedInput, Typography, Divider, Alert } from '@mui/material'
 import { IconX } from '@tabler/icons-react'
 
@@ -26,6 +27,9 @@ What can I do for you?`
 
 const Leads = ({ dialogProps }) => {
     const dispatch = useDispatch()
+    const theme = useTheme()
+    const customization = useSelector((state) => state.customization)
+    const isDark = theme.palette.mode === 'dark' || customization?.isDarkMode
 
     useNotifier()
 
@@ -211,8 +215,10 @@ const Leads = ({ dialogProps }) => {
                             </Box>
                         </Box>
 
-                        <Divider sx={{ width: '100%', my: 1 }} />
-                        <Typography variant='h4'>Email Campaigns (Mailchimp)</Typography>
+                        <Divider sx={{ width: '100%', my: 1, borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'divider' }} />
+                        <Typography variant='h4' sx={{ color: isDark ? 'text.primary' : 'inherit', fontWeight: 600 }}>
+                            Email Campaigns (Mailchimp)
+                        </Typography>
                         <SwitchInput
                             label='Sync Leads to Mailchimp'
                             onChange={(value) => handleMailchimpChange('status', value)}
@@ -226,7 +232,7 @@ const Leads = ({ dialogProps }) => {
                                     </Alert>
                                 )}
                                 <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
+                                    <Typography variant='body2' sx={{ fontWeight: 500, color: isDark ? 'text.secondary' : 'inherit' }}>
                                         Mailchimp API Key *
                                     </Typography>
                                     <OutlinedInput
@@ -240,7 +246,7 @@ const Leads = ({ dialogProps }) => {
                                     />
                                 </Box>
                                 <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
+                                    <Typography variant='body2' sx={{ fontWeight: 500, color: isDark ? 'text.secondary' : 'inherit' }}>
                                         Audience / List ID *
                                     </Typography>
                                     <OutlinedInput
@@ -254,7 +260,7 @@ const Leads = ({ dialogProps }) => {
                                     />
                                 </Box>
                                 <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
+                                    <Typography variant='body2' sx={{ fontWeight: 500, color: isDark ? 'text.secondary' : 'inherit' }}>
                                         Server Prefix (Optional)
                                     </Typography>
                                     <OutlinedInput
@@ -268,7 +274,7 @@ const Leads = ({ dialogProps }) => {
                                     />
                                 </Box>
                                 <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
+                                    <Typography variant='body2' sx={{ fontWeight: 500, color: isDark ? 'text.secondary' : 'inherit' }}>
                                         Tags (Optional)
                                     </Typography>
                                     <OutlinedInput
@@ -287,7 +293,35 @@ const Leads = ({ dialogProps }) => {
                                         size='small'
                                         onClick={handleTestMailchimp}
                                         disabled={!leadsConfig?.mailchimp?.apiKey || !leadsConfig?.mailchimp?.audienceId || isTesting}
-                                        sx={{ borderRadius: '8px' }}
+                                        sx={{
+                                            borderRadius: '8px',
+                                            px: 2,
+                                            py: 0.75,
+                                            fontWeight: 600,
+                                            textTransform: 'none',
+                                            transition: 'all 0.2s ease-in-out',
+                                            ...(isDark
+                                                ? {
+                                                      color: '#90caf9',
+                                                      borderColor: 'rgba(144, 202, 249, 0.45)',
+                                                      backgroundColor: 'rgba(33, 150, 243, 0.08)',
+                                                      '&:hover': {
+                                                          borderColor: '#90caf9',
+                                                          backgroundColor: 'rgba(33, 150, 243, 0.18)'
+                                                      },
+                                                      '&.Mui-disabled': {
+                                                          color: 'rgba(255, 255, 255, 0.35) !important',
+                                                          borderColor: 'rgba(255, 255, 255, 0.15) !important',
+                                                          backgroundColor: 'rgba(255, 255, 255, 0.03) !important'
+                                                      }
+                                                  }
+                                                : {
+                                                      '&.Mui-disabled': {
+                                                          color: 'rgba(0, 0, 0, 0.26) !important',
+                                                          borderColor: 'rgba(0, 0, 0, 0.12) !important'
+                                                      }
+                                                  })
+                                        }}
                                     >
                                         {isTesting ? 'Testing...' : 'Test Connection'}
                                     </Button>
@@ -308,7 +342,7 @@ const Leads = ({ dialogProps }) => {
                     </>
                 )}
             </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', width: '100%', mt: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', width: '100%', mt: 3, pb: 1 }}>
                 <StyledButton
                     disabled={
                         (!leadsConfig['name'] && !leadsConfig['phone'] && !leadsConfig['email'] && leadsConfig['status']) ||
@@ -316,7 +350,15 @@ const Leads = ({ dialogProps }) => {
                     }
                     variant='contained'
                     onClick={onSave}
-                    sx={{ minWidth: 100 }}
+                    sx={{
+                        minWidth: 100,
+                        ...(isDark && {
+                            '&.Mui-disabled': {
+                                color: 'rgba(255, 255, 255, 0.35) !important',
+                                backgroundColor: 'rgba(255, 255, 255, 0.12) !important'
+                            }
+                        })
+                    }}
                 >
                     Save
                 </StyledButton>

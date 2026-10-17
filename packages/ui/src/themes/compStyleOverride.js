@@ -38,7 +38,22 @@ export default function componentStyleOverrides(theme) {
             styleOverrides: {
                 root: {
                     fontWeight: 500,
-                    borderRadius: '4px'
+                    borderRadius: '4px',
+                    '&.Mui-disabled': {
+                        color: theme?.customization?.isDarkMode ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.26)'
+                    }
+                },
+                contained: {
+                    '&.Mui-disabled': {
+                        backgroundColor: theme?.customization?.isDarkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
+                        color: theme?.customization?.isDarkMode ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.26)'
+                    }
+                },
+                outlined: {
+                    '&.Mui-disabled': {
+                        borderColor: theme?.customization?.isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)',
+                        color: theme?.customization?.isDarkMode ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.26)'
+                    }
                 }
             }
         },
