@@ -66,12 +66,11 @@ const Leads = ({ dialogProps }) => {
 
     const handleTestMailchimp = async () => {
         const mc = leadsConfig?.mailchimp
-        if ((!mc?.apiKey && !mc?.credentialId) || !mc?.audienceId) return
+        if (!mc?.credentialId || !mc?.audienceId) return
         try {
             setIsTesting(true)
             setTestResult(null)
             const resp = await leadsApi.testMailchimp({
-                apiKey: mc.apiKey,
                 credentialId: mc.credentialId,
                 audienceId: mc.audienceId,
                 serverPrefix: mc.serverPrefix
@@ -151,9 +150,9 @@ const Leads = ({ dialogProps }) => {
         return () => {}
     }, [dialogProps])
 
-    const hasMailchimpAuth = leadsConfig?.mailchimp?.credentialId || leadsConfig?.mailchimp?.apiKey
     const isMailchimpIncomplete =
-        leadsConfig?.mailchimp?.status && (!hasMailchimpAuth || !leadsConfig?.mailchimp?.audienceId || !leadsConfig?.email)
+        leadsConfig?.mailchimp?.status &&
+        (!leadsConfig?.mailchimp?.credentialId || !leadsConfig?.mailchimp?.audienceId || !leadsConfig?.email)
 
     return (
         <>
@@ -236,7 +235,7 @@ const Leads = ({ dialogProps }) => {
                                 )}
                                 <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                     <Typography variant='body2' sx={{ fontWeight: 500, color: isDark ? 'text.secondary' : 'inherit' }}>
-                                        Connect Credential
+                                        Connect Credential *
                                     </Typography>
                                     <CredentialInputHandler
                                         key={leadsConfig?.mailchimp?.credentialId}
@@ -250,20 +249,6 @@ const Leads = ({ dialogProps }) => {
                                             credentialNames: ['mailchimpApi']
                                         }}
                                         onSelect={(newValue) => handleMailchimpChange('credentialId', newValue)}
-                                    />
-                                </Box>
-                                <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                    <Typography variant='body2' sx={{ fontWeight: 500, color: isDark ? 'text.secondary' : 'inherit' }}>
-                                        Or Enter API Key Directly
-                                    </Typography>
-                                    <OutlinedInput
-                                        id='mailchimp-api-key'
-                                        type='password'
-                                        fullWidth
-                                        size='small'
-                                        value={leadsConfig?.mailchimp?.apiKey || ''}
-                                        placeholder='e.g. md5hash-us20'
-                                        onChange={(e) => handleMailchimpChange('apiKey', e.target.value)}
                                     />
                                 </Box>
                                 <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -313,11 +298,7 @@ const Leads = ({ dialogProps }) => {
                                         variant='outlined'
                                         size='small'
                                         onClick={handleTestMailchimp}
-                                        disabled={
-                                            (!leadsConfig?.mailchimp?.apiKey && !leadsConfig?.mailchimp?.credentialId) ||
-                                            !leadsConfig?.mailchimp?.audienceId ||
-                                            isTesting
-                                        }
+                                        disabled={!leadsConfig?.mailchimp?.credentialId || !leadsConfig?.mailchimp?.audienceId || isTesting}
                                         sx={{
                                             borderRadius: '8px',
                                             px: 2,
