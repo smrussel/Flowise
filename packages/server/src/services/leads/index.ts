@@ -83,13 +83,31 @@ export const syncLeadToMailchimp = async (chatflowid: string, lead: IMailchimpLe
         }
 
         const authHeader = `Basic ${Buffer.from(`anystring:${apiKey}`).toString('base64')}`
-        const response = await axios.put(url, payload, {
-            headers: {
-                Authorization: authHeader,
-                'Content-Type': 'application/json'
-            },
-            timeout: 10000
-        })
+        let response
+        try {
+            response = await axios.put(url, payload, {
+                headers: {
+                    Authorization: authHeader,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 10000
+            })
+        } catch (err: any) {
+            // If Mailchimp rejected due to merge fields (e.g. PHONE merge tag not defined in audience), retry without PHONE
+            if (payload.merge_fields?.PHONE && err.response?.status === 400) {
+                logger.warn(`[Mailchimp]: Initial sync rejected for ${lead.email}. Retrying without PHONE merge field.`)
+                delete payload.merge_fields.PHONE
+                response = await axios.put(url, payload, {
+                    headers: {
+                        Authorization: authHeader,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                })
+            } else {
+                throw err
+            }
+        }
 
         logger.info(`[Mailchimp]: Lead ${lead.email} successfully synced to audience ${audienceId} in chatflow ${chatflowid}`)
         return response.data

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 
 // material-ui
-import { Button, Box, OutlinedInput, Typography, Divider } from '@mui/material'
+import { Button, Box, OutlinedInput, Typography, Divider, Alert } from '@mui/material'
 import { IconX } from '@tabler/icons-react'
 
 // Project import
@@ -45,13 +45,17 @@ const Leads = ({ dialogProps }) => {
     }
 
     const handleMailchimpChange = (field, value) => {
-        setLeadsConfig({
+        const updatedConfig = {
             ...leadsConfig,
             mailchimp: {
                 ...(leadsConfig.mailchimp || {}),
                 [field]: value
             }
-        })
+        }
+        if (field === 'status' && value && !updatedConfig.email) {
+            updatedConfig.email = true
+        }
+        setLeadsConfig(updatedConfig)
         setTestResult(null)
     }
 
@@ -141,7 +145,8 @@ const Leads = ({ dialogProps }) => {
         return () => {}
     }, [dialogProps])
 
-    const isMailchimpIncomplete = leadsConfig?.mailchimp?.status && (!leadsConfig?.mailchimp?.apiKey || !leadsConfig?.mailchimp?.audienceId)
+    const isMailchimpIncomplete =
+        leadsConfig?.mailchimp?.status && (!leadsConfig?.mailchimp?.apiKey || !leadsConfig?.mailchimp?.audienceId || !leadsConfig?.email)
 
     return (
         <>
@@ -215,6 +220,11 @@ const Leads = ({ dialogProps }) => {
                         />
                         {leadsConfig?.mailchimp?.status && (
                             <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2, pl: 1 }}>
+                                {!leadsConfig?.email && (
+                                    <Alert severity='warning' sx={{ width: '100%' }}>
+                                        Email capture must be enabled above because Mailchimp requires an email address for each subscriber.
+                                    </Alert>
+                                )}
                                 <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                     <Typography variant='body2' sx={{ fontWeight: 500 }}>
                                         Mailchimp API Key *
