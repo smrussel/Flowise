@@ -19,7 +19,15 @@ export interface CheckpointTuple {
     parentConfig?: RunnableConfig
 }
 
-export interface SerializerProtocol<D> {
-    stringify(obj: D): string
-    parse(data: string): Promise<D>
+export interface SerializerProtocol<D = any> {
+    stringify?(obj: D): string
+    parse?(data: string): Promise<D>
+    dumpsTyped?(data: any): Promise<[string, Uint8Array]>
+    loadsTyped?(type: string, data: Uint8Array | string): Promise<any>
+}
+
+export type CheckpointListOptions = {
+    limit?: number
+    before?: RunnableConfig
+    filter?: Record<string, any>
 }

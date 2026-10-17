@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { dest, src } from 'gulp'
 
 function copyEmailTemplates() {

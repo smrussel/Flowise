@@ -122,6 +122,8 @@ export const AsyncDropdown = ({
         }
     }
 
+    const activeCredential = nodeData.credential || nodeData.inputs?.credential || nodeData.inputs?.['FLOWISE_CREDENTIAL_ID']
+
     useEffect(() => {
         setLoading(true)
         ;(async () => {
@@ -173,7 +175,7 @@ export const AsyncDropdown = ({
         })()
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [activeCredential])
 
     return (
         <>

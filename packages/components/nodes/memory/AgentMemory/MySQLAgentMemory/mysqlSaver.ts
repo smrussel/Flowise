@@ -2,7 +2,7 @@ import { BaseCheckpointSaver, Checkpoint, CheckpointMetadata } from '@langchain/
 import { RunnableConfig } from '@langchain/core/runnables'
 import { BaseMessage } from '@langchain/core/messages'
 import { DataSource } from 'typeorm'
-import { CheckpointTuple, SaverOptions, SerializerProtocol } from '../interface'
+import { CheckpointTuple, SaverOptions, CheckpointListOptions } from '../interface'
 import { IMessage, MemoryMethods } from '../../../../src/Interface'
 import { mapChatMessageToBaseMessage } from '../../../../src/utils'
 
@@ -12,11 +12,43 @@ export class MySQLSaver extends BaseCheckpointSaver implements MemoryMethods {
     threadId: string
     tableName = 'checkpoints'
 
-    constructor(config: SaverOptions, serde?: SerializerProtocol<Checkpoint>) {
+    constructor(config: SaverOptions, serde?: any) {
         super(serde)
         this.config = config
         const { threadId } = config
         this.threadId = threadId
+    }
+
+    private async deserialize<T>(data: any): Promise<T> {
+        if (!data) return data
+        if (typeof data === 'object' && !(data instanceof Buffer) && !(data instanceof Uint8Array)) return data
+        const str = typeof data === 'string' ? data : Buffer.from(data).toString('utf-8')
+        try {
+            if ((this.serde as any)?.loadsTyped) {
+                return (await (this.serde as any).loadsTyped('json', Buffer.from(str, 'utf-8'))) as T
+            }
+            if ((this.serde as any)?.parse) {
+                return (await (this.serde as any).parse(str)) as T
+            }
+            return JSON.parse(str) as T
+        } catch {
+            return JSON.parse(str) as T
+        }
+    }
+
+    private async serialize(obj: any): Promise<string> {
+        try {
+            if ((this.serde as any)?.dumpsTyped) {
+                const [, bytes] = await (this.serde as any).dumpsTyped(obj)
+                return Buffer.from(bytes).toString('utf-8')
+            }
+            if ((this.serde as any)?.stringify) {
+                return (this.serde as any).stringify(obj)
+            }
+            return JSON.stringify(obj)
+        } catch {
+            return JSON.stringify(obj)
+        }
     }
 
     sanitizeTableName(tableName: string): string {
@@ -95,8 +127,8 @@ export class MySQLSaver extends BaseCheckpointSaver implements MemoryMethods {
                             checkpoint_id: row.checkpoint_id || checkpoint_id
                         }
                     },
-                    checkpoint: (await this.serde.parse(row.checkpoint.toString())) as Checkpoint,
-                    metadata: (await this.serde.parse(row.metadata.toString())) as CheckpointMetadata,
+                    checkpoint: (await this.deserialize(row.checkpoint.toString())) as Checkpoint,
+                    metadata: (await this.deserialize(row.metadata.toString())) as CheckpointMetadata,
                     parentConfig: row.parent_id
                         ? {
                               configurable: {
@@ -116,20 +148,26 @@ export class MySQLSaver extends BaseCheckpointSaver implements MemoryMethods {
         return undefined
     }
 
-    async *list(config: RunnableConfig, limit?: number, before?: RunnableConfig): AsyncGenerator<CheckpointTuple, void, unknown> {
+    async *list(
+        config: RunnableConfig,
+        options?: CheckpointListOptions | number,
+        before?: RunnableConfig
+    ): AsyncGenerator<CheckpointTuple, void, unknown> {
         const dataSource = await this.getDataSource()
         await this.setup(dataSource)
         const queryRunner = dataSource.createQueryRunner()
         try {
             const threadId = config.configurable?.thread_id || this.threadId
             const tableName = this.sanitizeTableName(this.tableName)
+            const limit = typeof options === 'number' ? options : options?.limit
+            const beforeConfig = typeof options === 'number' ? before : options?.before
             let sql = `SELECT thread_id, checkpoint_id, parent_id, checkpoint, metadata FROM ${tableName} WHERE thread_id = ? ${
-                before ? 'AND checkpoint_id < ?' : ''
+                beforeConfig ? 'AND checkpoint_id < ?' : ''
             } ORDER BY checkpoint_id DESC`
             if (limit) {
                 sql += ` LIMIT ${limit}`
             }
-            const args = [threadId, before?.configurable?.checkpoint_id].filter(Boolean)
+            const args = [threadId, beforeConfig?.configurable?.checkpoint_id].filter(Boolean)
 
             const rows = await queryRunner.manager.query(sql, args)
             await queryRunner.release()
@@ -143,8 +181,8 @@ export class MySQLSaver extends BaseCheckpointSaver implements MemoryMethods {
                                 checkpoint_id: row.checkpoint_id
                             }
                         },
-                        checkpoint: (await this.serde.parse(row.checkpoint.toString())) as Checkpoint,
-                        metadata: (await this.serde.parse(row.metadata.toString())) as CheckpointMetadata,
+                        checkpoint: (await this.deserialize(row.checkpoint.toString())) as Checkpoint,
+                        metadata: (await this.deserialize(row.metadata.toString())) as CheckpointMetadata,
                         parentConfig: row.parent_id
                             ? {
                                   configurable: {
@@ -164,7 +202,7 @@ export class MySQLSaver extends BaseCheckpointSaver implements MemoryMethods {
         }
     }
 
-    async put(config: RunnableConfig, checkpoint: Checkpoint, metadata: CheckpointMetadata): Promise<RunnableConfig> {
+    async put(config: RunnableConfig, checkpoint: Checkpoint, metadata: CheckpointMetadata, newVersions?: any): Promise<RunnableConfig> {
         const dataSource = await this.getDataSource()
         await this.setup(dataSource)
 
@@ -175,8 +213,8 @@ export class MySQLSaver extends BaseCheckpointSaver implements MemoryMethods {
                 config.configurable?.thread_id || this.threadId,
                 checkpoint.id,
                 config.configurable?.checkpoint_id,
-                Buffer.from(this.serde.stringify(checkpoint)), // Encode to binary
-                Buffer.from(this.serde.stringify(metadata)) // Encode to binary
+                Buffer.from(await this.serialize(checkpoint)), // Encode to binary
+                Buffer.from(await this.serialize(metadata)) // Encode to binary
             ]
             const tableName = this.sanitizeTableName(this.tableName)
 
@@ -199,6 +237,14 @@ export class MySQLSaver extends BaseCheckpointSaver implements MemoryMethods {
                 checkpoint_id: checkpoint.id
             }
         }
+    }
+
+    async putWrites(config: RunnableConfig, writes: any[], taskId: string): Promise<void> {
+        // intermediate writes storage
+    }
+
+    async deleteThread(threadId: string): Promise<void> {
+        await this.delete(threadId)
     }
 
     async delete(threadId: string): Promise<void> {

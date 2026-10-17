@@ -12,8 +12,8 @@
         "skipLibCheck": true /* Skip type checking all .d.ts files. */,
         "sourceMap": true,
         "strictPropertyInitialization": false,
-        "declaration": true
+        "declaration": false
     },
     "include": ["src/**/*.ts"],
-    "exclude": ["node_modules"]
+    "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.js", "**/*.spec.ts", "**/*.spec.js", "test"]
 }

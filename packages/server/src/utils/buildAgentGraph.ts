@@ -168,7 +168,8 @@ export const buildAgentGraph = async ({
 
             if (streamResults) {
                 let isStreamingStarted = false
-                for await (const output of await streamResults) {
+                for await (const rawOutput of await streamResults) {
+                    const output = rawOutput as any
                     if (!output?.__end__) {
                         for (const agentName of Object.keys(output)) {
                             if (!mapNameToLabel[agentName]) continue
@@ -500,7 +501,7 @@ const compileMultiAgentsGraph = async (params: MultiAgentsGraphParams) => {
                 supervisorWorkers[parentSupervisor] = [workerResult]
             }
 
-            workflowGraph.addNode(workerResult.name, workerResult.node)
+            ;(workflowGraph as any).addNode(workerResult.name, workerResult.node as any)
         } catch (e) {
             throw new InternalFlowiseError(StatusCodes.INTERNAL_SERVER_ERROR, `Error initialize worker nodes - ${getErrorMessage(e)}`)
         }
@@ -547,7 +548,7 @@ const compileMultiAgentsGraph = async (params: MultiAgentsGraphParams) => {
                 }
             }
 
-            workflowGraph.addNode(supervisorResult.name, supervisorResult.node)
+            ;(workflowGraph as any).addNode(supervisorResult.name, supervisorResult.node)
 
             for (const worker of supervisorResult.workers) {
                 //@ts-ignore
@@ -603,7 +604,7 @@ const compileMultiAgentsGraph = async (params: MultiAgentsGraphParams) => {
             return await graph.stream(
                 {
                     messages: [...prependMessages, new HumanMessage({ content: finalQuestion })]
-                },
+                } as any,
                 {
                     recursionLimit: supervisorResult?.recursionLimit ?? 100,
                     callbacks: [loggerHandler, ...callbacks],

@@ -45,7 +45,9 @@ class ChatOpenAI_ChatModels implements INode {
                 name: 'modelName',
                 type: 'asyncOptions',
                 loadMethod: 'listModels',
-                default: 'gpt-4o-mini'
+                default: 'gpt-4o-mini',
+                freeSolo: true,
+                refresh: true
             },
             {
                 label: 'Temperature',
@@ -213,8 +215,55 @@ class ChatOpenAI_ChatModels implements INode {
 
     //@ts-ignore
     loadMethods = {
-        async listModels(): Promise<INodeOptionsValue[]> {
-            return await getModels(MODEL_TYPE.CHAT, 'chatOpenAI')
+        async listModels(nodeData?: INodeData, options?: ICommonObject): Promise<INodeOptionsValue[]> {
+            let staticModels: INodeOptionsValue[] = []
+            try {
+                staticModels = await getModels(MODEL_TYPE.CHAT, 'chatOpenAI')
+            } catch (error) {
+                staticModels = []
+            }
+
+            try {
+                if (nodeData && options) {
+                    let credId = nodeData.credential
+                    if (!credId && nodeData.inputs?.credentialId) {
+                        credId = nodeData.inputs.credentialId
+                    }
+                    if (!credId && nodeData.inputs?.credential) {
+                        credId = nodeData.inputs.credential
+                    }
+                    if (!credId && (nodeData.inputs as any)?.FLOWISE_CREDENTIAL_ID) {
+                        credId = (nodeData.inputs as any).FLOWISE_CREDENTIAL_ID
+                    }
+                    if (credId) {
+                        const credentialData = await getCredentialData(credId, options)
+                        const openAIApiKey = credentialData?.openAIApiKey || (nodeData?.inputs as any)?.openAIApiKey
+                        if (openAIApiKey) {
+                            const basePath = nodeData.inputs?.basepath as string
+                            const clientOptions: any = { apiKey: openAIApiKey }
+                            if (basePath) clientOptions.baseURL = basePath
+                            const openai = new OpenAIClient(clientOptions)
+                            const response = await openai.models.list()
+                            const apiModels: INodeOptionsValue[] = []
+                            const staticModelNames = new Set(staticModels.map((m) => m.name))
+                            for await (const model of response) {
+                                if (!staticModelNames.has(model.id)) {
+                                    apiModels.push({
+                                        label: model.id,
+                                        name: model.id
+                                    })
+                                }
+                            }
+                            apiModels.sort((a, b) => a.name.localeCompare(b.name))
+                            return [...staticModels, ...apiModels]
+                        }
+                    }
+                }
+            } catch (e: any) {
+                console.warn('[ChatOpenAI]: Live fetching models from OpenAI API failed, falling back to static list:', e?.message || e)
+            }
+
+            return staticModels
         }
     }
 

@@ -41,7 +41,7 @@ class GithubSSO extends SSOBase {
                                 'User-Agent': 'Node.js'
                             }
                         })
-                        const emails = await emailResponse.json()
+                        const emails = (await emailResponse.json()) as any
                         // Look for a verified primary email.
                         let primaryEmail = emails.find((email: any) => email.primary && email.verified)?.email
                         if (!primaryEmail && Array.isArray(emails) && emails.length > 0) {
@@ -115,7 +115,7 @@ class GithubSSO extends SSOBase {
                     code: 'dummy_code_for_testing'
                 })
             })
-            const data = await response.json()
+            const data = (await response.json()) as any
             if (data.error === 'bad_verification_code') {
                 return { message: 'ClientID and clientSecret are valid.' }
             } else {
@@ -126,7 +126,7 @@ class GithubSSO extends SSOBase {
         }
     }
 
-    async refreshToken(currentRefreshToken: string) {
+    async refreshToken(currentRefreshToken: string): Promise<{ [key: string]: any }> {
         const { clientID, clientSecret } = this.ssoConfig
 
         try {
@@ -143,7 +143,7 @@ class GithubSSO extends SSOBase {
                     refresh_token: currentRefreshToken
                 })
             })
-            const data = await response.json()
+            const data = (await response.json()) as any
             if (data.error || !data.access_token) {
                 return { error: 'Failed to get refreshToken from Github.' }
             } else {

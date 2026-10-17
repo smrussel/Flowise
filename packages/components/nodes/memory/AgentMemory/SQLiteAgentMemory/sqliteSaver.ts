@@ -2,7 +2,7 @@ import { BaseCheckpointSaver, Checkpoint, CheckpointMetadata } from '@langchain/
 import { RunnableConfig } from '@langchain/core/runnables'
 import { BaseMessage } from '@langchain/core/messages'
 import { DataSource } from 'typeorm'
-import { CheckpointTuple, SaverOptions, SerializerProtocol } from '../interface'
+import { CheckpointTuple, SaverOptions, CheckpointListOptions } from '../interface'
 import { IMessage, MemoryMethods } from '../../../../src/Interface'
 import { mapChatMessageToBaseMessage } from '../../../../src/utils'
 
@@ -12,11 +12,43 @@ export class SqliteSaver extends BaseCheckpointSaver implements MemoryMethods {
     threadId: string
     tableName = 'checkpoints'
 
-    constructor(config: SaverOptions, serde?: SerializerProtocol<Checkpoint>) {
+    constructor(config: SaverOptions, serde?: any) {
         super(serde)
         this.config = config
         const { threadId } = config
         this.threadId = threadId
+    }
+
+    private async deserialize<T>(data: any): Promise<T> {
+        if (!data) return data
+        if (typeof data === 'object' && !(data instanceof Buffer) && !(data instanceof Uint8Array)) return data
+        const str = typeof data === 'string' ? data : Buffer.from(data).toString('utf-8')
+        try {
+            if ((this.serde as any)?.loadsTyped) {
+                return (await (this.serde as any).loadsTyped('json', Buffer.from(str, 'utf-8'))) as T
+            }
+            if ((this.serde as any)?.parse) {
+                return (await (this.serde as any).parse(str)) as T
+            }
+            return JSON.parse(str) as T
+        } catch {
+            return JSON.parse(str) as T
+        }
+    }
+
+    private async serialize(obj: any): Promise<string> {
+        try {
+            if ((this.serde as any)?.dumpsTyped) {
+                const [, bytes] = await (this.serde as any).dumpsTyped(obj)
+                return Buffer.from(bytes).toString('utf-8')
+            }
+            if ((this.serde as any)?.stringify) {
+                return (this.serde as any).stringify(obj)
+            }
+            return JSON.stringify(obj)
+        } catch {
+            return JSON.stringify(obj)
+        }
     }
 
     sanitizeTableName(tableName: string): string {
@@ -83,8 +115,8 @@ CREATE TABLE IF NOT EXISTS ${tableName} (
                 if (rows && rows.length > 0) {
                     return {
                         config,
-                        checkpoint: (await this.serde.parse(rows[0].checkpoint)) as Checkpoint,
-                        metadata: (await this.serde.parse(rows[0].metadata)) as CheckpointMetadata,
+                        checkpoint: (await this.deserialize(rows[0].checkpoint)) as Checkpoint,
+                        metadata: (await this.deserialize(rows[0].metadata)) as CheckpointMetadata,
                         parentConfig: rows[0].parent_id
                             ? {
                                   configurable: {
@@ -118,8 +150,8 @@ CREATE TABLE IF NOT EXISTS ${tableName} (
                                 checkpoint_id: rows[0].checkpoint_id
                             }
                         },
-                        checkpoint: (await this.serde.parse(rows[0].checkpoint)) as Checkpoint,
-                        metadata: (await this.serde.parse(rows[0].metadata)) as CheckpointMetadata,
+                        checkpoint: (await this.deserialize(rows[0].checkpoint)) as Checkpoint,
+                        metadata: (await this.deserialize(rows[0].metadata)) as CheckpointMetadata,
                         parentConfig: rows[0].parent_id
                             ? {
                                   configurable: {
@@ -140,20 +172,26 @@ CREATE TABLE IF NOT EXISTS ${tableName} (
         return undefined
     }
 
-    async *list(config: RunnableConfig, limit?: number, before?: RunnableConfig): AsyncGenerator<CheckpointTuple> {
+    async *list(
+        config: RunnableConfig,
+        options?: CheckpointListOptions | number,
+        before?: RunnableConfig
+    ): AsyncGenerator<CheckpointTuple> {
         const dataSource = await this.getDataSource()
         await this.setup(dataSource)
 
+        const limit = typeof options === 'number' ? options : options?.limit
+        const beforeConfig = typeof options === 'number' ? before : options?.before
         const queryRunner = dataSource.createQueryRunner()
         const thread_id = config.configurable?.thread_id || this.threadId
         const tableName = this.sanitizeTableName(this.tableName)
         let sql = `SELECT thread_id, checkpoint_id, parent_id, checkpoint, metadata FROM ${tableName} WHERE thread_id = ? ${
-            before ? 'AND checkpoint_id < ?' : ''
+            beforeConfig ? 'AND checkpoint_id < ?' : ''
         } ORDER BY checkpoint_id DESC`
         if (limit) {
             sql += ` LIMIT ${limit}`
         }
-        const args = [thread_id, before?.configurable?.checkpoint_id].filter(Boolean)
+        const args = [thread_id, beforeConfig?.configurable?.checkpoint_id].filter(Boolean)
 
         try {
             const rows = await queryRunner.manager.query(sql, [...args])
@@ -168,8 +206,8 @@ CREATE TABLE IF NOT EXISTS ${tableName} (
                                 checkpoint_id: row.checkpoint_id
                             }
                         },
-                        checkpoint: (await this.serde.parse(row.checkpoint)) as Checkpoint,
-                        metadata: (await this.serde.parse(row.metadata)) as CheckpointMetadata,
+                        checkpoint: (await this.deserialize(row.checkpoint)) as Checkpoint,
+                        metadata: (await this.deserialize(row.metadata)) as CheckpointMetadata,
                         parentConfig: row.parent_id
                             ? {
                                   configurable: {
@@ -189,7 +227,7 @@ CREATE TABLE IF NOT EXISTS ${tableName} (
         }
     }
 
-    async put(config: RunnableConfig, checkpoint: Checkpoint, metadata: CheckpointMetadata): Promise<RunnableConfig> {
+    async put(config: RunnableConfig, checkpoint: Checkpoint, metadata: CheckpointMetadata, newVersions?: any): Promise<RunnableConfig> {
         const dataSource = await this.getDataSource()
         await this.setup(dataSource)
 
@@ -200,8 +238,8 @@ CREATE TABLE IF NOT EXISTS ${tableName} (
                 config.configurable?.thread_id || this.threadId,
                 checkpoint.id,
                 config.configurable?.checkpoint_id,
-                this.serde.stringify(checkpoint),
-                this.serde.stringify(metadata)
+                await this.serialize(checkpoint),
+                await this.serialize(metadata)
             ]
             const tableName = this.sanitizeTableName(this.tableName)
             const query = `INSERT OR REPLACE INTO ${tableName} (thread_id, checkpoint_id, parent_id, checkpoint, metadata) VALUES (?, ?, ?, ?, ?)`
@@ -221,6 +259,14 @@ CREATE TABLE IF NOT EXISTS ${tableName} (
                 checkpoint_id: checkpoint.id
             }
         }
+    }
+
+    async putWrites(config: RunnableConfig, writes: any[], taskId: string): Promise<void> {
+        // intermediate writes storage
+    }
+
+    async deleteThread(threadId: string): Promise<void> {
+        await this.delete(threadId)
     }
 
     async delete(threadId: string): Promise<void> {

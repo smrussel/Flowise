@@ -34,30 +34,50 @@ const isValidUrl = (urlString: string) => {
  * If any of the loading fails, fallback to the default models.json file on disk
  */
 const getRawModelFile = async () => {
-    const modelFile =
-        process.env.MODEL_LIST_CONFIG_JSON ?? 'https://raw.githubusercontent.com/FlowiseAI/Flowise/main/packages/components/models.json'
-    try {
-        if (isValidUrl(modelFile)) {
-            const resp = await axios.get(modelFile)
-            if (resp.status === 200 && resp.data) {
-                return resp.data
-            } else {
-                throw new Error('Error fetching model list')
+    // If a custom model config location is set via env var, prioritize that
+    if (process.env.MODEL_LIST_CONFIG_JSON) {
+        const modelFile = process.env.MODEL_LIST_CONFIG_JSON
+        try {
+            if (isValidUrl(modelFile)) {
+                const resp = await axios.get(modelFile)
+                if (resp.status === 200 && resp.data) {
+                    return resp.data
+                }
+            } else if (fs.existsSync(modelFile)) {
+                const models = await fs.promises.readFile(modelFile, 'utf8')
+                if (models) {
+                    return JSON.parse(models)
+                }
             }
-        } else if (fs.existsSync(modelFile)) {
-            const models = await fs.promises.readFile(modelFile, 'utf8')
+        } catch (e) {
+            // fallback to local file
+        }
+    }
+
+    // Default: load local models.json from disk
+    const localJsonPath = getModelsJSONPath()
+    if (localJsonPath && fs.existsSync(localJsonPath)) {
+        try {
+            const models = await fs.promises.readFile(localJsonPath, 'utf8')
             if (models) {
                 return JSON.parse(models)
             }
+        } catch (e) {
+            // fallback
         }
-        throw new Error('Model file does not exist or is empty')
-    } catch (e) {
-        const models = await fs.promises.readFile(getModelsJSONPath(), 'utf8')
-        if (models) {
-            return JSON.parse(models)
-        }
-        return {}
     }
+
+    // Fallback: try remote GitHub repository
+    try {
+        const resp = await axios.get('https://raw.githubusercontent.com/FlowiseAI/Flowise/main/packages/components/models.json')
+        if (resp.status === 200 && resp.data) {
+            return resp.data
+        }
+    } catch (e) {
+        // ignore
+    }
+
+    return {}
 }
 
 const getModelConfig = async (category: MODEL_TYPE, name: string) => {

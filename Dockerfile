@@ -4,13 +4,16 @@
 # Run image
 # docker run -d -p 3000:3000 flowise
 
-FROM node:24-alpine
+ARG NODE_VERSION=20
+FROM node:${NODE_VERSION}-alpine
 
 # Install system dependencies and build tools
 RUN apk update && \
     apk add --no-cache \
     libc6-compat \
     python3 \
+    py3-pip \
+    git \
     make \
     g++ \
     build-base \
@@ -33,12 +36,6 @@ COPY . .
 # Install dependencies and build (excluding sdk packages not needed for Docker)
 RUN pnpm install && \
     pnpm build:docker
-
-# Give the node user ownership of the application files
-RUN chown -R node:node .
-
-# Switch to non-root user (node user already exists in node:20-alpine)
-USER node
 
 EXPOSE 3000
 

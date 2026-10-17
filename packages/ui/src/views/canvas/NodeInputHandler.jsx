@@ -1044,6 +1044,7 @@ const NodeInputHandler = ({
                                 onSelect={(newValue) => {
                                     data.credential = newValue
                                     data.inputs[FLOWISE_CREDENTIAL_ID] = newValue // in case data.credential is not updated
+                                    setReloadTimestamp(Date.now().toString())
                                 }}
                             />
                         )}
@@ -1375,7 +1376,9 @@ const NodeInputHandler = ({
                             <>
                                 {data.inputParams.length === 1 && <div style={{ marginTop: 10 }} />}
                                 <div
-                                    key={`${reloadTimestamp}_${data.id}_${JSON.stringify(data.inputs[inputParam.name])}`}
+                                    key={`${reloadTimestamp}_${data.id}_${
+                                        data.credential || (data.inputs && data.inputs[FLOWISE_CREDENTIAL_ID]) || ''
+                                    }_${JSON.stringify(data.inputs[inputParam.name])}`}
                                     style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1 }}
                                 >
                                     <AsyncDropdown

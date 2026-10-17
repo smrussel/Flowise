@@ -47,6 +47,82 @@ import { maxScroll } from '@/store/constant'
 
 const assistantAvailableModels = [
     {
+        label: 'gpt-6 (latest)',
+        name: 'gpt-6'
+    },
+    {
+        label: 'gpt-6-astra',
+        name: 'gpt-6-astra'
+    },
+    {
+        label: 'gpt-6.1-sol',
+        name: 'gpt-6.1-sol'
+    },
+    {
+        label: 'gpt-6-sol',
+        name: 'gpt-6-sol'
+    },
+    {
+        label: 'gpt-6-luna',
+        name: 'gpt-6-luna'
+    },
+    {
+        label: 'gpt-6-mini',
+        name: 'gpt-6-mini'
+    },
+    {
+        label: 'gpt-5.5',
+        name: 'gpt-5.5'
+    },
+    {
+        label: 'gpt-5.4',
+        name: 'gpt-5.4'
+    },
+    {
+        label: 'gpt-5.4-mini',
+        name: 'gpt-5.4-mini'
+    },
+    {
+        label: 'gpt-5',
+        name: 'gpt-5'
+    },
+    {
+        label: 'gpt-5-mini',
+        name: 'gpt-5-mini'
+    },
+    {
+        label: 'chatgpt-4o-latest',
+        name: 'chatgpt-4o-latest'
+    },
+    {
+        label: 'o3',
+        name: 'o3'
+    },
+    {
+        label: 'o3-mini',
+        name: 'o3-mini'
+    },
+    {
+        label: 'o4-mini',
+        name: 'o4-mini'
+    },
+    {
+        label: 'o1',
+        name: 'o1'
+    },
+    {
+        label: 'o1-2024-12-17',
+        name: 'o1-2024-12-17'
+    },
+    {
+        label: 'o1-preview',
+        name: 'o1-preview'
+    },
+    {
+        label: 'o1-mini',
+        name: 'o1-mini'
+    },
+    {
         label: 'gpt-4.1',
         name: 'gpt-4.1'
     },
